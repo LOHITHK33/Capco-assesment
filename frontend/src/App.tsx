@@ -1,122 +1,97 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect, useState } from "react";
+import type { MeetingsResponse, Meeting, Source } from "./types";
+import SummaryBar from "./components/SummaryBar";
+import FilterBar from "./components/FilterBar";
+import MeetingCard from "./components/MeetingCard";
 
-function App() {
-  const [count, setCount] = useState(0)
+type FilterOption = "all" | Source | "conflicts" | "issues" | "duplicates";
+
+export default function App() {
+  const [data, setData] = useState<MeetingsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterOption>("all");
+
+  useEffect(() => {
+    fetch("/api/meetings")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+        return res.json() as Promise<MeetingsResponse>;
+      })
+      .then((json) => {
+        setData(json);
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unknown error");
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading)
+    return (
+      <div className="app">
+        <p className="empty-state">Loading meetings...</p>
+      </div>
+    );
+  if (error)
+    return (
+      <div className="app">
+        <p className="empty-state">Error: {error}</p>
+      </div>
+    );
+  if (!data) return null;
+
+  const filtered = data.meetings.filter((m: Meeting) => {
+    switch (filter) {
+      case "all":
+        return true;
+      case "both":
+        return m.source === "both";
+      case "crm_only":
+        return m.source === "crm_only";
+      case "cal_only":
+        return m.source === "cal_only";
+      case "conflicts":
+        return m.conflicts.length > 0;
+      case "issues":
+        return m.data_quality.crm.length > 0 || m.data_quality.cal.length > 0;
+      case "duplicates":
+        return m.is_duplicate;
+      default:
+        return true;
+    }
+  });
+
+  const counts = {
+    all: data.meetings.length,
+    both: data.meetings.filter((m) => m.source === "both").length,
+    crm_only: data.meetings.filter((m) => m.source === "crm_only").length,
+    cal_only: data.meetings.filter((m) => m.source === "cal_only").length,
+    conflicts: data.meetings.filter((m) => m.conflicts.length > 0).length,
+    issues: data.meetings.filter(
+      (m) => m.data_quality.crm.length > 0 || m.data_quality.cal.length > 0,
+    ).length,
+    duplicates: data.meetings.filter((m) => m.is_duplicate).length,
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app">
+      <div className="app-header">
+        <h1>Event Sync Service</h1>
+        <p>Reconciled view of CRM and Calendar meetings</p>
+      </div>
 
-      <div className="ticks"></div>
+      <SummaryBar summary={data.summary} />
+      <FilterBar active={filter} onChange={setFilter} counts={counts} />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      <div className="meeting-list">
+        {filtered.length === 0 ? (
+          <p className="empty-state">No meetings match this filter.</p>
+        ) : (
+          filtered.map((m) => <MeetingCard key={m.id} meeting={m} />)
+        )}
+      </div>
+    </div>
+  );
 }
-
-export default App
